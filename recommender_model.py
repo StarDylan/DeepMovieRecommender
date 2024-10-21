@@ -111,8 +111,6 @@ class HybridRecSys(nn.Module):
         
         return final_output.squeeze(1)  # Remove extra dimension for final output
 
-
-# Initialize model and optimizer
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif torch.backends.mps.is_available():
