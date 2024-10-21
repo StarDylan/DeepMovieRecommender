@@ -60,8 +60,8 @@ train_dataset = RatingDataset(train_data)
 test_dataset = RatingDataset(test_data)
 
 # DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
 
 # 3. Define Model: Hybrid Matrix Factorization + Neural Collaborative Filtering (NCF)
 class HybridRecSys(nn.Module):
@@ -113,7 +113,12 @@ class HybridRecSys(nn.Module):
 
 
 # Initialize model and optimizer
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
 model = HybridRecSys(n_users, n_movies, embedding_size=32, hidden_size=[128, 64, 32])
 model.to(device)
 
@@ -128,7 +133,7 @@ def train_model(train_loader, optimizer, model, criterion, num_epochs=5):
         for user_id, movie_id, rating in tqdm(train_loader):
             user_id = user_id.to(device)
             movie_id = movie_id.to(device)
-            rating = rating.to(device).float()  # Convert to float for MSE
+            rating = rating.to(device, dtype=torch.float32) # Convert to float for MSE
             
             optimizer.zero_grad()
             outputs = model(user_id, movie_id)
@@ -140,12 +145,16 @@ def train_model(train_loader, optimizer, model, criterion, num_epochs=5):
         
         epoch_loss = running_loss / len(train_loader.dataset)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
+        if (epoch+1) % 10 == 0:
+            torch.save(model.state_dict(), f'models/movie_recommendation_model_{epoch + 1}.pth')
+            torch.save(model, 'models/movie_recommendation_model_complete.pth')
 
 # Train the model
-train_model(train_loader, optimizer, model, criterion, num_epochs=5)
+train_model(train_loader, optimizer, model, criterion, num_epochs=500)
 
 # 6. Save the model
-torch.save(model.state_dict(), 'movie_recommendation_model.pth')
+torch.save(model.state_dict(), 'models/movie_recommendation_model.pth')
+torch.save(model, 'models/movie_recommendation_model_complete.pth')
 print("Model saved!")
 
 
@@ -153,12 +162,11 @@ print("Model saved!")
 def evaluate_model(test_loader, model):
     model.eval()
     preds, actuals = [], []
-    
     with torch.no_grad():
         for user_id, movie_id, rating in test_loader:
             user_id = user_id.to(device)
             movie_id = movie_id.to(device)
-            rating = rating.to(device).float()
+            rating = rating.to(device, dtype=torch.float32)
             
             outputs = model(user_id, movie_id)
             preds.append(outputs.cpu().numpy())

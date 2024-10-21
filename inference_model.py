@@ -112,7 +112,9 @@ class HybridRecSys(nn.Module):
         return final_output.squeeze(1)
 
 
-
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+  
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loaded_model = HybridRecSys(n_users, n_movies, embedding_size=32, hidden_size=[128, 64, 32])
 loaded_model.load_state_dict(torch.load('movie_recommendation_model.pth'))

@@ -118,7 +118,13 @@ class HybridRecSys(nn.Module):
         return final_output.squeeze(1)  # Remove extra dimension for final output
 
 # 4. Initialize model, criterion, optimizer
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
+    
 model = HybridRecSys(n_users, n_movies, n_genres, embedding_size=32, hidden_size=[128, 64])
 model.to(device)
 
