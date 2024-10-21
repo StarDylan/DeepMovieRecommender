@@ -168,6 +168,6 @@ for model in os.listdir('models'):
         top_movie_titles = [movie_id_to_title[movie_ids_inv[movie_id]] for movie_id in top_movie_ids]
         return top_movie_titles
 
-    movie_ids_inv = {v: k for k, v in movie_ids.items()}  # Reverse movie_id mapping for recommendation
-    recommendations = recommend_top_n(user_id=12, model=loaded_model, top_n=10)
-    print("Top 10 recommendations for user 12:", recommendations)
+movie_ids_inv = {v: k for k, v in movie_ids.items()}  # Reverse movie_id mapping for recommendation
+recommendations = recommend_top_n(user_id=12, model=loaded_model, top_n=10)
+print("Top 10 recommendations for user 12:", recommendations)
