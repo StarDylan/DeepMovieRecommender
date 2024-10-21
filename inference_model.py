@@ -111,56 +111,63 @@ class HybridRecSys(nn.Module):
         
         return final_output.squeeze(1)
 
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
 
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-  
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-loaded_model = HybridRecSys(n_users, n_movies, embedding_size=32, hidden_size=[128, 64, 32])
-loaded_model.load_state_dict(torch.load('movie_recommendation_model.pth'))
-loaded_model.to(device)
-loaded_model.eval()
-print("Model loaded!")
+import os
+for model in os.listdir('models'):
+    if 'complete' in model:
+        continue
+
+    loaded_model = HybridRecSys(n_users, n_movies, embedding_size=32, hidden_size=[128, 64, 32])
+    loaded_model.load_state_dict(torch.load(os.path.join('models', model)))
+    loaded_model.to(device)
+    loaded_model.eval()
+    print("Model loaded!")
 
 
-# 5. Evaluate the Model
-def evaluate_model(test_loader, model):
-    model.eval()
-    preds, actuals = [], []
-    
-    with torch.no_grad():
-        for user_id, movie_id, rating in test_loader:
-            user_id = user_id.to(device)
-            movie_id = movie_id.to(device)
-            rating = rating.to(device).float()
+    # 5. Evaluate the Model
+    def evaluate_model(test_loader, model):
+        model.eval()
+        preds, actuals = [], []
         
-            outputs = model(user_id, movie_id)
-            preds.append(outputs.cpu().numpy())
-            actuals.append(rating.cpu().numpy())
-    
-    preds = np.concatenate(preds)
-    actuals = np.concatenate(actuals)
-    
-    mse = mean_squared_error(actuals, preds)
-    print(f"Test MSE: {mse:.4f}")
-    return mse
+        with torch.no_grad():
+            for user_id, movie_id, rating in test_loader:
+                user_id = user_id.to(device)
+                movie_id = movie_id.to(device)
+                rating = rating.to(device, dtype=torch.float32)
+            
+                outputs = model(user_id, movie_id)
+                preds.append(outputs.cpu().numpy())
+                actuals.append(rating.cpu().numpy())
+        
+        preds = np.concatenate(preds)
+        actuals = np.concatenate(actuals)
+        
+        mse = mean_squared_error(actuals, preds)
+        print(f"Test MSE: {mse:.4f}")
+        return mse
 
-evaluate_model(test_loader, loaded_model)
+    evaluate_model(test_loader, loaded_model)
 
 
-def recommend_top_n(user_id, model, top_n=10):
-    model.eval()
-    user_embedding = model.user_embedding_mf(torch.tensor([user_id]).to(device))
-    all_movie_embeddings = model.movie_embedding_mf.weight.data 
+    def recommend_top_n(user_id, model, top_n=10):
+        model.eval()
+        user_embedding = model.user_embedding_mf(torch.tensor([user_id]).to(device))
+        all_movie_embeddings = model.movie_embedding_mf.weight.data 
 
-    # Dot product similarity
-    scores = torch.matmul(user_embedding, all_movie_embeddings.T).squeeze(0)
-    top_movie_ids = torch.topk(scores, top_n).indices.cpu().numpy()
+        # Dot product similarity
+        scores = torch.matmul(user_embedding, all_movie_embeddings.T).squeeze(0)
+        top_movie_ids = torch.topk(scores, top_n).indices.cpu().numpy()
 
-    # Get corresponding movie titles
-    top_movie_titles = [movie_id_to_title[movie_ids_inv[movie_id]] for movie_id in top_movie_ids]
-    return top_movie_titles
+        # Get corresponding movie titles
+        top_movie_titles = [movie_id_to_title[movie_ids_inv[movie_id]] for movie_id in top_movie_ids]
+        return top_movie_titles
 
-movie_ids_inv = {v: k for k, v in movie_ids.items()}  # Reverse movie_id mapping for recommendation
-recommendations = recommend_top_n(user_id=12, model=loaded_model, top_n=10)
-print("Top 10 recommendations for user 12:", recommendations)
+    movie_ids_inv = {v: k for k, v in movie_ids.items()}  # Reverse movie_id mapping for recommendation
+    recommendations = recommend_top_n(user_id=12, model=loaded_model, top_n=10)
+    print("Top 10 recommendations for user 12:", recommendations)
