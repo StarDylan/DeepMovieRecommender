@@ -23,7 +23,7 @@ genre_columns = mlb.classes_
 # Add the genre columns to the movies DataFrame
 genres_df = pd.DataFrame(genres_encoded, columns=genre_columns)
 movies = pd.concat([movies, genres_df], axis=1)
-
+print(movies.head(5))
 # Create a dictionary mapping movie IDs to their titles
 movie_id_to_title = {row['movieId']: row['title'] for _, row in movies.iterrows()}
 
