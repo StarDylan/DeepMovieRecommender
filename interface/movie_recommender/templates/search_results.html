@@ -1,5 +1,19 @@
-Matches {{people|length}} / {{ count }} people in the directory.
-{% for person in people %}
-<p>{{ person.name }}</p>
-<p>{{ person.description }}</p>
+
+{% for movie in movies %}
+<div id="list-result">
+    <p>{{ movie.name }}</p>
+    <form id="number-form" hx-post="/submit-number/{{movie.id}}">
+        {% csrf_token %}    
+        <label for="number-input">Rating (0-10):</label>
+        <input type="number" id="number-input" name="number" min="0" max="10" value="{{ movie.rating }}" required>
+        <button type="submit">Submit</button>
+    </form>
+</div>
+
+<script>
+    var form = document.getElementById("number-form");
+    function handleForm(event) { event.preventDefault(); } 
+    form.addEventListener('submit', handleForm);
+</script>
+
 {% endfor %}
