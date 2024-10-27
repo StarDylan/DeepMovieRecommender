@@ -5,7 +5,7 @@ from django.utils.html import format_html
 import sys
 import pandas as pd
 
-
+from django.http import HttpResponse
 movies = None
 
 def search_view(request):
@@ -17,9 +17,12 @@ def search_view(request):
 def set_rating(request, movie_id):
     if request.method == 'POST':
         form_data = request.POST.dict()
-        rating = form_data.get("number-input")
+        print(form_data)
+        rating = form_data.get("number")
 
         MovieRating(id=movie_id, rating=rating).save()
+
+        return render(request, 'rating.html', {"rating": rating})
 
 def search_results_view(request):
     query = request.GET.get('search', '')
@@ -60,6 +63,32 @@ def search_results_view(request):
     return render(request, 'search_results.html', context)
 
 
+def get_recommendations(request):
+    ratings = MovieRating.objects.all()
+
+    rated_movie_ids = []
+    movie_ratings = []
+    for rating in ratings:
+        rated_movie_ids.append(rating.id)
+        movie_ratings.append(rating.rating)
+
+    # Calculate recommendations
+    print(rated_movie_ids, movie_ratings)
+    ######################################
+
+    recommended_movie_ids = [0, 1, 2]
+    movies = MovieRating.objects.filter(id__in=recommended_movie_ids)
+
+    return render(request, "recommendations.html", {"movies": movies})
+
+
+def delete_all_ratings(request):
+    MovieRating.objects.all().delete()
+
+    response = HttpResponse()
+    response.headers["HX-Refresh"] = "true"
+    return response
+
 def highlight_matched_text(text, query):
     """
     Inserts html around the matched text.
@@ -70,3 +99,4 @@ def highlight_matched_text(text, query):
     end = start + len(query)
     highlighted = format_html('<span class="highlight">{}</span>', text[start:end])
     return format_html('{}{}{}', text[:start], highlighted, text[end:])
+
