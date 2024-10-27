@@ -77,9 +77,19 @@ def get_recommendations(request):
     ######################################
 
     recommended_movie_ids = [0, 1, 2]
-    movies = MovieRating.objects.filter(id__in=recommended_movie_ids)
 
-    return render(request, "recommendations.html", {"movies": movies})
+    global movies
+    if movies is None:
+        # Load movies
+        movies = pd.read_csv('../data/movies.csv')
+        # Convert user and item IDs to integers (index-based)
+        movie_ids = {id: i for i, id in enumerate(movies['movieId'].unique())}
+
+        movies['movieId'] = movies['movieId'].apply(lambda x: movie_ids[x])
+
+    formatted_recommended_movies = [{"name": movie.title} for (_, movie) in movies[movies["movieId"].isin(recommended_movie_ids)].iterrows()]
+
+    return render(request, "recommendations.html", {"movies": formatted_recommended_movies})
 
 
 def delete_all_ratings(request):
