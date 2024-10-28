@@ -79,6 +79,10 @@ def search_results_view(request):
     
     if movies is None:
         movies = pd.read_csv('../data/movies.csv')
+        ratings = pd.read_csv('../data/ratings.csv')
+        movies = movies[movies['movieId'].isin(ratings['movieId'])]
+        movies['movieId'] = movies['movieId'].apply(lambda x: movie_ids[x])
+
     
 
     from thefuzz import process 
@@ -119,6 +123,7 @@ def get_recommendations(request):
     global movies_and_ratings, movie_genres, n_users, n_movies, n_genres, model, movie_ids, movies
 
     if movies_and_ratings is None or n_movies is None:
+        print("Loading movies and ratings dataframe")
         movies_df = pd.read_csv('../data/movies.csv')
         ratings_df = pd.read_csv('../data/ratings.csv')
         user_ids = {id: i for i, id in enumerate(ratings_df['userId'].unique())}
@@ -130,6 +135,7 @@ def get_recommendations(request):
         n_movies = len(movie_ids)
 
     if movie_genres is None or n_genres is None:
+        print("Loading movie genres")
         movies_and_ratings['genres'] = movies_and_ratings['genres'].str.split('|')
         genres_set = set(g for sublist in movies_and_ratings['genres'] for g in sublist)
         n_genres = len(genres_set)
@@ -138,10 +144,12 @@ def get_recommendations(request):
         movie_genres = movies_and_ratings[['movieId'] + list(genres_set)].drop_duplicates().set_index('movieId')
         
     if model is None:
+        print("Loading model")
         model = EnhancedRecommendationModel(n_users, n_movies, n_genres).to('cpu')
         state_dict = torch.load('../models/ncf.pth', map_location=torch.device('cpu'))
         model.load_state_dict(state_dict)
 
+    print("Getting recommendations for user")
     new_user_ratings_df = pd.DataFrame([rated_movie_ids, movie_ratings])
     new_user_ratings_df[0] = new_user_ratings_df[0].apply(lambda x: movie_ids[x])
     
@@ -150,7 +158,7 @@ def get_recommendations(request):
         ratings = pd.read_csv('../data/ratings.csv')
         movies = movies[movies['movieId'].isin(ratings['movieId'])]
         movies['movieId'] = movies['movieId'].apply(lambda x: movie_ids[x])
-    
+
     recommended_movie_ids = get_recs_for_user(new_user_ratings_df, movie_genres, model)
     print(recommended_movie_ids)
     ######################################
