@@ -20,3 +20,6 @@ Append /search/ to the server url
 `test.py`: building the collaborative filtering model
 
 `test.ipynb`: testing the collaborative filtering model
+
+## Dataset
+https://www.kaggle.com/datasets/parasharmanas/movie-recommendation-system?resource=download
