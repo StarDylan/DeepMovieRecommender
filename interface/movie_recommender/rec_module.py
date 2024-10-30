@@ -14,7 +14,7 @@ def get_recs_for_user(new_user_ratings_df, movie_genres, model):
 
     # Latent
     movie_embedding_matrix = model.movie_factors.weight.data.cpu().numpy()
-    new_user_movie_ids = new_user_ratings_df[0].values
+    new_user_movie_ids = new_user_ratings_df[0]
     user_profile = movie_embedding_matrix[new_user_movie_ids].mean(axis=0)
     latent_similarities = cosine_similarity([user_profile], movie_embedding_matrix)[0]
 
