@@ -26,7 +26,7 @@ def get_recs_for_user(new_user_ratings_df, movie_genres, model):
     hybrid_scores = content_weight * genre_similarity_scores + latent_weight * latent_similarity_scores
     recommended_movies_hybrid_movie_ids = hybrid_scores.sort_values(ascending=False).head(10).index
 
-    return recommended_movies_hybrid_movie_ids
+    return recommended_movies_hybrid_movie_ids, movie_embedding_matrix
 
 def explain_content_based_recommendations(recommended_movies, user_favorite_genres, movies):
     explanations = []
@@ -73,3 +73,42 @@ def group_and_output_explanations(hybrid_recommendations, user_favorite_genres, 
             print(explanation)
 
     return grouped_explanations
+
+
+def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_embedding_matrix, movies):
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+
+    # Dimensionality reduction using TSNE
+    tsne = TSNE(n_components=2, random_state=42)
+    embeddings_2d = tsne.fit_transform(movie_embedding_matrix)
+
+    # Visualization
+    plt.figure(figsize=(14, 10))
+
+    # Plot all movie embeddings
+    plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5, label='All Movies')
+
+    # Highlight user-rated movies
+    user_rated_embeddings = embeddings_2d[new_user_movie_ids]
+    plt.scatter(user_rated_embeddings[:, 0], user_rated_embeddings[:, 1], color='red', label='User Rated Movies')
+
+    # Highlight recommended movies
+    recommended_movie_ids = recommended_movies_hybrid_movie_ids
+    recommended_embeddings = embeddings_2d[recommended_movie_ids]
+    plt.scatter(recommended_embeddings[:, 0], recommended_embeddings[:, 1], color='blue', label='Recommended Movies')
+
+    # Annotate user-rated movies
+    for i, movie_id in enumerate(new_user_movie_ids):
+        plt.annotate(movies[movies["movieId"] == movie_id].title.values[0], (user_rated_embeddings[i, 0], user_rated_embeddings[i, 1]), color='red')
+
+    # Annotate recommended movies
+    for i, movie_id in enumerate(recommended_movie_ids):
+        plt.annotate(movies[movies["movieId"] == movie_id].title.values[0], (recommended_embeddings[i, 0], recommended_embeddings[i, 1]), color='blue')
+
+    plt.title('2D Visualization of Movie Embeddings')
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    plt.legend()
+
+    plt.savefig('static/images/recommended_movies.png')

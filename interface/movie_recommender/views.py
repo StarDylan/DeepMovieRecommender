@@ -7,7 +7,7 @@ from django.shortcuts import render
 from .models import MovieRating
 from django.utils.html import format_html
 from asgiref.sync import sync_to_async
-from movie_recommender.rec_module import get_recs_for_user, group_and_output_explanations
+from movie_recommender.rec_module import get_recs_for_user, group_and_output_explanations, output_image
 from django.http import HttpResponse
 from thefuzz import process
 import time
@@ -203,7 +203,7 @@ def get_recommendations(request):
     new_user_ratings_df = pd.DataFrame([rated_movie_ids, movie_ratings])
     print(new_user_ratings_df)
 
-    recommended_movie_ids = get_recs_for_user(new_user_ratings_df, movie_genres, model)
+    recommended_movie_ids, movie_embedding_matrix = get_recs_for_user(new_user_ratings_df, movie_genres, model)
     print(recommended_movie_ids)
 
     explanations = group_and_output_explanations(recommended_movie_ids, [], new_user_ratings_df, movies)["Hybrid Recommendations"]
@@ -217,6 +217,8 @@ def get_recommendations(request):
 
 
     formatted_recommended_movies = [{"name": movie.title, "explaination": get_explaination(movie.title)} for (_, movie) in movies[movies["movieId"].isin(recommended_movie_ids)].iterrows()]
+
+    output_image(recommended_movies_hybrid_movie_ids=recommended_movie_ids, new_user_movie_ids=new_user_ratings_df, movie_embedding_matrix=movie_embedding_matrix, movies=movies)
 
     return render(request, "recommendations.html", {"movies": formatted_recommended_movies})
 
