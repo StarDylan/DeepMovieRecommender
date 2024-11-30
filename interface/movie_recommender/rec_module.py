@@ -43,11 +43,10 @@ def explain_content_based_recommendations(recommended_movies, user_favorite_genr
     return explanations
 
 def explain_latent_factor_recommendations(recommended_movies, user_ratings_df, movies_and_ratings):
-    print(f"User Ratings df T[0]: {user_ratings_df.T[0]}")
     explanations = []
     for movie_id in recommended_movies:
         title = movies_and_ratings[movies_and_ratings["movieId"] == movie_id].title.values[0]
-        similar_movies = user_ratings_df.T[0].apply(lambda x: movies_and_ratings[movies_and_ratings["movieId"] == x].title.values[0]).tolist()
+        similar_movies = list(map(lambda x: movies_and_ratings[movies_and_ratings["movieId"] == x].title.values[0], user_ratings_df))
         explanation = f"'{title}' is recommended through latent factor recommendation because it is similar to movies you rated highly: {', '.join(similar_movies)}."
         explanations.append((title, explanation))
     return explanations
@@ -80,7 +79,7 @@ def group_and_output_explanations(hybrid_recommendations, user_favorite_genres, 
 
 embeddings_2d = None
 
-def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_embedding_matrix, movies_and_ratings):
+def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_embedding_matrix, movies):
     from sklearn.manifold import TSNE
 
 
@@ -112,26 +111,43 @@ def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_
     # Plot all movie embeddings
     ax.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5, label='All Movies')
 
-    # Highlight user-rated movies
-    # user_rated_embeddings = embeddings_2d[new_user_movie_ids]
-    # ax.scatter(user_rated_embeddings[:, 0], user_rated_embeddings[:, 1], color='red', label='User Rated Movies')
+    # min max of embedding dems
+    print(f"Min: {embeddings_2d[:, 0].min()}, Max: {embeddings_2d[:, 0].max()}")
+    print(f"Min: {embeddings_2d[:, 1].min()}, Max: {embeddings_2d[:, 1].max()}")
+
+
 
     # # Highlight recommended movies
     recommended_movie_ids = recommended_movies_hybrid_movie_ids
     recommended_embeddings = embeddings_2d[recommended_movie_ids]
     ax.scatter(recommended_embeddings[:, 0], recommended_embeddings[:, 1], color='blue', label='Recommended Movies')
 
-    # # Annotate user-rated movies
-    # for i, movie_id in enumerate(new_user_movie_ids):
-    #     ax.annotate(movies[movies["movieId"] == movie_id].title.values[0], (user_rated_embeddings[i, 0], user_rated_embeddings[i, 1]), color='red')
+    # Highlight user-rated movies
+    user_rated_embeddings = embeddings_2d[new_user_movie_ids]
+    print(f"User embeddings: {user_rated_embeddings}")
+    ax.scatter(user_rated_embeddings[:, 0], user_rated_embeddings[:, 1], color='red', label='User Rated Movies')
+
 
     # # Annotate recommended movies
     for i, movie_id in enumerate(recommended_movie_ids):
-        ax.annotate(movies_and_ratings[movies_and_ratings["movieId"] == movie_id].title.values[0], (recommended_embeddings[i, 0], recommended_embeddings[i, 1]), color='blue')
+        ax.annotate(movies[movies["movieId"] == movie_id].title.values[0], (recommended_embeddings[i, 0], recommended_embeddings[i, 1]), color='blue')
+        
+    # # Annotate user-rated movies
+    for i, movie_id in enumerate(new_user_movie_ids):
+        print(movie_id)
+        print(f"Annotated: {movies[movies['movieId'] == movie_id].title.values[0]}, {(user_rated_embeddings[i, 0], user_rated_embeddings[i, 1])}")
+        ax.annotate(movies[movies['movieId'] == movie_id].title.values[0], (user_rated_embeddings[i, 0], user_rated_embeddings[i, 1]), color='red')
 
     ax.set_title('2D Visualization of Movie Embeddings')
     ax.set_xlabel('Dimension 1')
     ax.set_ylabel('Dimension 2')
     ax.legend()
 
-    ax.figure.savefig('movie_recommender/static/recommended_movies.png', transparent=True)
+    import io
+    import base64
+    my_stringIObytes = io.BytesIO()
+    ax.figure.savefig(my_stringIObytes, transparent=True)
+    my_stringIObytes.seek(0)
+    my_base64_jpgData = base64.b64encode(my_stringIObytes.read()).decode()
+
+    return my_base64_jpgData

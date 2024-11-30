@@ -92,6 +92,9 @@ def load_cached_data(just_movies = False):
         movies['movieId'] = movies['movieId'].apply(lambda x: movie_ids[x])
 
 
+        movies = movies_and_ratings.groupby('movieId', as_index=False).first()
+
+
     if just_movies:
         return
 
@@ -207,7 +210,9 @@ def get_recommendations(request):
     recommended_movie_ids, movie_embedding_matrix = get_recs_for_user(new_user_ratings_df, movie_genres, model)
     print(recommended_movie_ids)
 
-    explanations = group_and_output_explanations(recommended_movie_ids, [], new_user_ratings_df, movies)["Hybrid Recommendations"]
+    user_rating_ids = np.unique(new_user_ratings_df.T[0].values)
+
+    explanations = group_and_output_explanations(recommended_movie_ids, [], user_rating_ids, movies)["Hybrid Recommendations"]
     ######################################
 
     def get_explaination(movie_title):
@@ -215,14 +220,14 @@ def get_recommendations(request):
             if movie_title == title:
                 return explaination
         return "No explanation available"
+    
 
 
     formatted_recommended_movies = [{"name": movie.title, "explaination": get_explaination(movie.title)} for (_, movie) in movies[movies["movieId"].isin(recommended_movie_ids)].iterrows()]
 
-    user_rating_ids = np.unique(new_user_ratings_df.T[0].values)
-    output_image(recommended_movies_hybrid_movie_ids=recommended_movie_ids, new_user_movie_ids=user_rating_ids, movie_embedding_matrix=movie_embedding_matrix, movies_and_ratings=movies_and_ratings)
+    image = output_image(recommended_movies_hybrid_movie_ids=recommended_movie_ids, new_user_movie_ids=user_rating_ids, movie_embedding_matrix=movie_embedding_matrix, movies=movies)
 
-    return render(request, "recommendations.html", {"movies": formatted_recommended_movies})
+    return render(request, "recommendations.html", {"movies": formatted_recommended_movies, "image": image})
 
 
 def delete_all_ratings(request):
