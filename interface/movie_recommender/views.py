@@ -11,6 +11,7 @@ from movie_recommender.rec_module import get_recs_for_user, group_and_output_exp
 from django.http import HttpResponse
 from thefuzz import process
 import time
+import numpy as np
 
 # Define paths for cache files
 MOVIES_FILE = '../data/movies.csv'
@@ -218,7 +219,8 @@ def get_recommendations(request):
 
     formatted_recommended_movies = [{"name": movie.title, "explaination": get_explaination(movie.title)} for (_, movie) in movies[movies["movieId"].isin(recommended_movie_ids)].iterrows()]
 
-    output_image(recommended_movies_hybrid_movie_ids=recommended_movie_ids, new_user_movie_ids=new_user_ratings_df, movie_embedding_matrix=movie_embedding_matrix, movies=movies)
+    user_rating_ids = np.unique(new_user_ratings_df.T[0].values)
+    output_image(recommended_movies_hybrid_movie_ids=recommended_movie_ids, new_user_movie_ids=user_rating_ids, movie_embedding_matrix=movie_embedding_matrix, movies_and_ratings=movies_and_ratings)
 
     return render(request, "recommendations.html", {"movies": formatted_recommended_movies})
 

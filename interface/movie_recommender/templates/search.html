@@ -14,9 +14,21 @@
                 <button
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                     hx-post="/recommendation-update"
-                    hx-target="#recommendations">
+                    hx-target="#recommendations"
+                    hx-indicator="#spinner">
                     Refresh Ratings
                 </button>
+                <img id="spinner" class="htmx-indicator" src="/static/bars.svg" style="
+                    .htmx-indicator{
+                        opacity:0;
+                        transition: opacity 500ms ease-in;
+                    }
+                    .htmx-request .htmx-indicator{
+                        opacity:1;
+                    }
+                    .htmx-request.htmx-indicator{
+                        opacity:1;
+                    }"/>
             </h3>
 
             <div id="recommendations">

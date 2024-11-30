@@ -4,7 +4,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.metrics.pairwise import cosine_similarity
+import pickle
+import os
+from matplotlib.figure import Figure
 
+TSNE_FILE = '../cache/tsne.pkl'
 
 def get_recs_for_user(new_user_ratings_df, movie_genres, model):
     # Content-based
@@ -24,42 +28,42 @@ def get_recs_for_user(new_user_ratings_df, movie_genres, model):
     genre_similarity_scores = genre_similarities / genre_similarities.max()
     latent_similarity_scores = pd.Series(latent_similarities).rank(pct=True)
     hybrid_scores = content_weight * genre_similarity_scores + latent_weight * latent_similarity_scores
-    recommended_movies_hybrid_movie_ids = hybrid_scores.sort_values(ascending=False).head(10).index
+    recommended_movies_hybrid_movie_ids = hybrid_scores.sort_values(ascending=False).head(5).index
 
     return recommended_movies_hybrid_movie_ids, movie_embedding_matrix
 
-def explain_content_based_recommendations(recommended_movies, user_favorite_genres, movies):
+def explain_content_based_recommendations(recommended_movies, user_favorite_genres, movies_and_ratings):
     explanations = []
     for movie_id in recommended_movies:
-        title = movies[movies["movieId"] == movie_id].title.values[0]
-        genres = movies[movies["movieId"] == movie_id]["genres"].tolist()
+        title = movies_and_ratings[movies_and_ratings["movieId"] == movie_id].title.values[0]
+        genres = movies_and_ratings[movies_and_ratings["movieId"] == movie_id]["genres"].tolist()
         common_genres = set(genres).intersection(set(user_favorite_genres))
         explanation = f"'{title}' is recommended through content-based recommendation because it belongs to your favorite genres: {', '.join(common_genres)}."
         explanations.append((title, explanation))
     return explanations
 
-def explain_latent_factor_recommendations(recommended_movies, user_ratings_df, movies):
+def explain_latent_factor_recommendations(recommended_movies, user_ratings_df, movies_and_ratings):
     print(f"User Ratings df T[0]: {user_ratings_df.T[0]}")
     explanations = []
     for movie_id in recommended_movies:
-        title = movies[movies["movieId"] == movie_id].title.values[0]
-        similar_movies = user_ratings_df.T[0].apply(lambda x: movies[movies["movieId"] == x].title.values[0]).tolist()
+        title = movies_and_ratings[movies_and_ratings["movieId"] == movie_id].title.values[0]
+        similar_movies = user_ratings_df.T[0].apply(lambda x: movies_and_ratings[movies_and_ratings["movieId"] == x].title.values[0]).tolist()
         explanation = f"'{title}' is recommended through latent factor recommendation because it is similar to movies you rated highly: {', '.join(similar_movies)}."
         explanations.append((title, explanation))
     return explanations
 
-def explain_hybrid_recommendations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies):
-    content_explanations = explain_content_based_recommendations(hybrid_recommendations, user_favorite_genres, movies)
-    latent_explanations = explain_latent_factor_recommendations(hybrid_recommendations.tolist(), user_ratings_df, movies)
+def explain_hybrid_recommendations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies_and_ratings):
+    content_explanations = explain_content_based_recommendations(hybrid_recommendations, user_favorite_genres, movies_and_ratings)
+    latent_explanations = explain_latent_factor_recommendations(hybrid_recommendations.tolist(), user_ratings_df, movies_and_ratings)
     combined_explanations = []
     for content_exp, latent_exp in zip(content_explanations, latent_explanations):
         combined_explanations.append((content_exp[0], f"{content_exp[1]} Additionally, {latent_exp[1]}"))
     return combined_explanations
 
-def group_and_output_explanations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies):
-    content_explanations = explain_content_based_recommendations(hybrid_recommendations, user_favorite_genres, movies)
-    latent_explanations = explain_latent_factor_recommendations(hybrid_recommendations.tolist(), user_ratings_df, movies)
-    hybrid_explanations = explain_hybrid_recommendations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies)
+def group_and_output_explanations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies_and_ratings):
+    content_explanations = explain_content_based_recommendations(hybrid_recommendations, user_favorite_genres, movies_and_ratings)
+    latent_explanations = explain_latent_factor_recommendations(hybrid_recommendations.tolist(), user_ratings_df, movies_and_ratings)
+    hybrid_explanations = explain_hybrid_recommendations(hybrid_recommendations, user_favorite_genres, user_ratings_df, movies_and_ratings)
     
     grouped_explanations = {
         "Content-Based Recommendations": content_explanations,
@@ -74,41 +78,60 @@ def group_and_output_explanations(hybrid_recommendations, user_favorite_genres, 
 
     return grouped_explanations
 
+embeddings_2d = None
 
-def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_embedding_matrix, movies):
+def output_image(recommended_movies_hybrid_movie_ids, new_user_movie_ids, movie_embedding_matrix, movies_and_ratings):
     from sklearn.manifold import TSNE
-    import matplotlib.pyplot as plt
+
 
     # Dimensionality reduction using TSNE
-    tsne = TSNE(n_components=2, random_state=42)
-    embeddings_2d = tsne.fit_transform(movie_embedding_matrix)
+    global embeddings_2d
+
+    if embeddings_2d is None:
+        if os.path.exists(TSNE_FILE):
+            with open(TSNE_FILE, 'rb') as f:
+                embeddings_2d = pickle.load(f)
+        else:
+            # Calculate TSNE + save
+            print(f"Fitting TSNE on {movie_embedding_matrix.shape[0]} movie embeddings...")
+            tsne = TSNE(n_components=2, random_state=42)
+            embeddings_2d = tsne.fit_transform(movie_embedding_matrix)
+            
+            # Save processed data for future use
+            with open(TSNE_FILE, 'wb') as f:
+                pickle.dump(embeddings_2d, f)
+            
+            print("Completed TSNE fitting + Saved to cache")
+
+
 
     # Visualization
-    plt.figure(figsize=(14, 10))
+    fig = Figure(figsize=(14, 10))
+    ax = fig.subplots()
 
     # Plot all movie embeddings
-    plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5, label='All Movies')
+    ax.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], alpha=0.5, label='All Movies')
 
     # Highlight user-rated movies
-    user_rated_embeddings = embeddings_2d[new_user_movie_ids]
-    plt.scatter(user_rated_embeddings[:, 0], user_rated_embeddings[:, 1], color='red', label='User Rated Movies')
+    # user_rated_embeddings = embeddings_2d[new_user_movie_ids]
+    # ax.scatter(user_rated_embeddings[:, 0], user_rated_embeddings[:, 1], color='red', label='User Rated Movies')
 
-    # Highlight recommended movies
+    # # Highlight recommended movies
     recommended_movie_ids = recommended_movies_hybrid_movie_ids
     recommended_embeddings = embeddings_2d[recommended_movie_ids]
-    plt.scatter(recommended_embeddings[:, 0], recommended_embeddings[:, 1], color='blue', label='Recommended Movies')
+    ax.scatter(recommended_embeddings[:, 0], recommended_embeddings[:, 1], color='blue', label='Recommended Movies')
 
-    # Annotate user-rated movies
-    for i, movie_id in enumerate(new_user_movie_ids):
-        plt.annotate(movies[movies["movieId"] == movie_id].title.values[0], (user_rated_embeddings[i, 0], user_rated_embeddings[i, 1]), color='red')
+    # # Annotate user-rated movies
+    # for i, movie_id in enumerate(new_user_movie_ids):
+    #     ax.annotate(movies[movies["movieId"] == movie_id].title.values[0], (user_rated_embeddings[i, 0], user_rated_embeddings[i, 1]), color='red')
 
-    # Annotate recommended movies
+    # # Annotate recommended movies
     for i, movie_id in enumerate(recommended_movie_ids):
-        plt.annotate(movies[movies["movieId"] == movie_id].title.values[0], (recommended_embeddings[i, 0], recommended_embeddings[i, 1]), color='blue')
+        ax.annotate(movies_and_ratings[movies_and_ratings["movieId"] == movie_id].title.values[0], (recommended_embeddings[i, 0], recommended_embeddings[i, 1]), color='blue')
 
-    plt.title('2D Visualization of Movie Embeddings')
-    plt.xlabel('Dimension 1')
-    plt.ylabel('Dimension 2')
-    plt.legend()
+    ax.set_title('2D Visualization of Movie Embeddings')
+    ax.set_xlabel('Dimension 1')
+    ax.set_ylabel('Dimension 2')
+    ax.legend()
 
-    plt.savefig('static/images/recommended_movies.png')
+    ax.figure.savefig('movie_recommender/static/recommended_movies.png', transparent=True)
